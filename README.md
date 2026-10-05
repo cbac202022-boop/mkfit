@@ -1,183 +1,338 @@
-# MKFit — Boutique e-commerce de sport
+# MKFit — E-commerce sport & fitness
 
-Site e-commerce complet pour **MKFit** : vêtements, chaussures, accessoires, matériel de musculation et nutrition.
+**Une boutique en ligne dédiée aux vêtements, chaussures, accessoires, équipements de musculation et produits de nutrition sportive.**
 
-**Stack** : Next.js 15 (App Router) · TypeScript · Tailwind CSS · Prisma (SQLite, compatible PostgreSQL) · NextAuth (email / mot de passe) · Stripe Checkout (mode test) · Zustand · Zod
+MKFit réunit un catalogue filtrable, un parcours d’achat complet, un espace client et une interface d’administration. Le projet s’appuie sur Next.js et TypeScript, avec Prisma pour la gestion des données et Stripe Checkout pour le paiement en environnement de test.
 
----
+> Le projet inclut des données de démonstration et un mode de commande sans paiement réel. Consultez la section [Mise en production](#mise-en-production) avant tout déploiement commercial.
 
-## Démarrage rapide
+## Sommaire
 
-Prérequis : **Node.js 20 ou plus** et npm.
-
-```bash
-npm install                 # installe les dépendances et génère le client Prisma
-cp .env.example .env        # puis éditez .env (voir ci-dessous)
-npx prisma migrate dev      # crée la base SQLite et lance automatiquement le seed
-npm run dev                 # http://localhost:3000
-```
-
-> Sous Windows (PowerShell), remplacez `cp` par `Copy-Item .env.example .env`.
-
-### Comptes de démonstration (créés par le seed)
-
-| Rôle    | Email             | Mot de passe |
-| ------- | ----------------- | ------------ |
-| Admin   | `admin@mkfit.fr`  | `Admin123!`  |
-| Client  | `client@mkfit.fr` | `Client123!` |
-
-L'espace d'administration est accessible sur `/admin` avec le compte admin.
-
-### Codes promo de démonstration
-
-| Code          | Effet                               |
-| ------------- | ----------------------------------- |
-| `BIENVENUE10` | -10 %                               |
-| `MKFIT20`     | -20 % dès 100 € d'achat             |
-| `LIVRAISON5`  | -5 € dès 30 € d'achat               |
-
----
-
-## Variables d'environnement
-
-| Variable                 | Rôle                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`           | Connexion à la base. `file:./dev.db` pour SQLite.                                          |
-| `NEXTAUTH_URL`           | URL publique du site (ex. `http://localhost:3000`).                                        |
-| `NEXTAUTH_SECRET`        | Secret de signature des sessions. Générez-le avec `openssl rand -base64 32`.               |
-| `STRIPE_SECRET_KEY`      | Clé secrète Stripe **de test** (`sk_test_…`). Vide = mode démo, voir plus bas.             |
-| `STRIPE_WEBHOOK_SECRET`  | Secret du webhook Stripe (`whsec_…`).                                                      |
-| `NEXT_PUBLIC_SITE_URL`   | URL publique, utilisée pour le sitemap, les métadonnées et les redirections Stripe.        |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Identifiants du compte admin créé par le seed (facultatif).              |
-
-### Paiement : mode démo ou Stripe
-
-- **Sans `STRIPE_SECRET_KEY`** : le site fonctionne en **mode démo**. Le bouton « Valider la commande » crée la commande et la marque payée directement, sans paiement réel. Pratique pour tester le parcours complet.
-- **Avec Stripe (mode test)** :
-  1. Récupérez votre clé `sk_test_…` sur <https://dashboard.stripe.com/test/apikeys> et placez-la dans `STRIPE_SECRET_KEY`.
-  2. Installez la [CLI Stripe](https://stripe.com/docs/stripe-cli), puis lancez :
-     ```bash
-     stripe listen --forward-to localhost:3000/api/webhooks/stripe
-     ```
-     et copiez le secret `whsec_…` affiché dans `STRIPE_WEBHOOK_SECRET`.
-  3. Payez avec la carte de test `4242 4242 4242 4242` (date future, CVC quelconque).
-
-  La commande passe en « payée » via le webhook, et aussi via la page de confirmation, qui interroge Stripe directement. Le parcours fonctionne donc même si le webhook n'est pas lancé. Le stock n'est décrémenté qu'une seule fois.
-
----
-
-## Scripts
-
-| Commande              | Description                                                   |
-| --------------------- | ------------------------------------------------------------- |
-| `npm run dev`         | Serveur de développement (Turbopack)                          |
-| `npm run build`       | Build de production                                           |
-| `npm start`           | Démarre le build de production                                |
-| `npm run lint`        | ESLint                                                        |
-| `npm run typecheck`   | Vérification TypeScript                                       |
-| `npm run db:migrate`  | Applique les migrations Prisma                                |
-| `npm run db:seed`     | Relance le seed (vide puis remplit la base)                   |
-| `npm run db:reset`    | Réinitialise complètement la base puis relance le seed        |
-| `npm run db:studio`   | Interface Prisma Studio pour explorer les données             |
-
----
+- [Fonctionnalités](#fonctionnalités)
+- [Stack technique](#stack-technique)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Données de démonstration](#données-de-démonstration)
+- [Paiement](#paiement)
+- [Commandes disponibles](#commandes-disponibles)
+- [Organisation du projet](#organisation-du-projet)
+- [Choix techniques](#choix-techniques)
+- [Passage à PostgreSQL](#passage-à-postgresql)
+- [Mise en production](#mise-en-production)
+- [Dépannage](#dépannage)
 
 ## Fonctionnalités
 
-**Boutique**
-- Accueil : hero, catégories phares, produits en vedette, bandeau promo, nouveautés, newsletter
-- Catalogue `/boutique` et `/boutique/[categorie]` : filtres (catégorie, prix, taille, couleur, marque), tri (popularité, nouveautés, prix), pagination. Les filtres sont dans l'URL, donc partageables.
-- Fiche produit `/produit/[slug]` : galerie, choix taille/couleur avec stock par variante, avis clients (note et commentaire), produits similaires, données structurées schema.org
-- Recherche avec suggestions en direct (navigable au clavier) et page `/recherche`
-- Panier persistant (localStorage), resynchronisé avec la base (prix, stock) à l'ouverture, code promo, barre de progression vers la livraison offerte
-- Checkout : contact, adresse (ou adresse enregistrée), 3 modes de livraison, paiement Stripe, page de confirmation
+### Boutique et catalogue
 
-**Compte client** (`/compte`) : inscription, connexion, historique et détail des commandes, carnet d'adresses, favoris
+- Page d’accueil avec catégories principales, produits en vedette, nouveautés, bandeau promotionnel et section newsletter.
+- Catalogue avec filtres par catégorie, prix, taille, couleur et marque.
+- Tri par popularité, nouveautés ou prix, avec pagination.
+- Filtres conservés dans l’URL pour partager une sélection de produits.
+- Fiches produit avec galerie, variantes taille/couleur, disponibilité par variante, avis clients et produits similaires.
+- Recherche avec suggestions en direct, navigation au clavier et page de résultats dédiée.
 
-**Administration** (`/admin`, rôle ADMIN) : tableau de bord, CRUD produits (images, variantes, générateur de combinaisons taille × couleur), gestion des stocks en ligne, CRUD catégories, commandes avec filtre et changement de statut. L'annulation d'une commande payée remet les articles en stock.
+### Panier et commande
 
-**Pages** : À propos, Contact (formulaire enregistré en base), FAQ, CGV, Livraison & retours, 404
+- Panier persistant dans le navigateur, avec actualisation des prix et des stocks à l’ouverture.
+- Application de codes promotionnels et indicateur du montant restant pour bénéficier de la livraison offerte.
+- Parcours de commande avec coordonnées, adresse de livraison ou sélection d’une adresse enregistrée.
+- Trois modes de livraison et intégration de Stripe Checkout.
+- Page de confirmation et suivi des commandes dans l’espace client.
 
-**SEO** : métadonnées par page, URLs lisibles en français, `sitemap.xml` dynamique, `robots.txt`, données structurées Product et FAQ, balises canoniques
+### Espace client
 
-**Accessibilité** : lien d'évitement, focus visible, labels et messages d'erreur reliés aux champs, attributs `alt`, `aria-current`, combobox ARIA pour la recherche, contrastes AA. Le vert néon n'est jamais utilisé comme couleur de texte sur fond blanc. Les animations sont désactivées si `prefers-reduced-motion` est actif.
+Accessible sur `/compte` : inscription, connexion, historique et détail des commandes, carnet d’adresses et gestion des favoris.
 
----
+### Administration
 
-## Structure du projet
+Accessible sur `/admin` aux utilisateurs disposant du rôle `ADMIN` :
 
+- Tableau de bord de gestion.
+- Création, modification et suppression des produits et catégories.
+- Gestion des images et des variantes, avec génération de combinaisons taille × couleur.
+- Modification des stocks depuis l’interface.
+- Filtrage des commandes et mise à jour de leur statut.
+- Remise en stock des articles lors de l’annulation d’une commande payée.
+
+### Pages, référencement et accessibilité
+
+Le site comprend les pages À propos, Contact, FAQ, CGV, Livraison & retours et une page 404. Les messages du formulaire de contact sont enregistrés en base de données.
+
+Le référencement repose sur des métadonnées par page, des URL lisibles en français, un sitemap dynamique, un fichier `robots.txt`, des balises canoniques et des données structurées `Product` et `FAQ`.
+
+Les dispositions d’accessibilité comprennent un lien d’évitement, des indicateurs de focus visibles, des libellés et erreurs associés aux champs, des textes alternatifs, l’attribut `aria-current` et une recherche utilisant le modèle ARIA combobox. Les contrastes visent le niveau AA ; le vert néon n’est pas utilisé comme texte sur fond blanc. Les animations sont désactivées lorsque `prefers-reduced-motion` est actif.
+
+## Stack technique
+
+| Domaine | Technologies |
+| --- | --- |
+| Application | Next.js 15, App Router, TypeScript |
+| Interface | Tailwind CSS |
+| Données | Prisma, SQLite par défaut, adaptation possible à PostgreSQL |
+| Authentification | NextAuth, connexion par email et mot de passe |
+| Paiement | Stripe Checkout, mode test |
+| État du panier | Zustand |
+| Validation | Zod |
+| Polices | Fontsource, hébergement local |
+
+## Installation
+
+### Prérequis
+
+- Node.js 20 ou supérieur.
+- npm.
+- Un compte Stripe et Stripe CLI pour tester les webhooks, si vous activez le paiement Stripe.
+
+Exécutez les commandes suivantes depuis la racine du projet.
+
+### 1. Installer les dépendances
+
+```bash
+npm install
 ```
-prisma/
-  schema.prisma          Modèle de données
-  seed.ts                37 produits, 5 catégories, comptes, avis, codes promo
-src/
-  middleware.ts          Protège /compte et /admin
-  actions/               Server Actions (compte, panier, favoris, avis, formulaires, admin)
-  app/
-    (shop)/              Pages publiques et espace client (avec header et footer)
-    admin/               Back-office (layout dédié)
-    api/                 auth, search, checkout, webhooks/stripe
-    sitemap.ts, robots.ts
-  components/
-    ui/                  Boutons, champs, badges, images…
-    layout/              Header, footer, recherche, menu mobile
-    product/ catalog/ cart/ checkout/ account/ order/ admin/ home/
-  lib/
-    auth.ts              Configuration NextAuth et helpers requireUser / requireAdmin
-    catalog.ts           Requêtes catalogue (Prisma)
-    catalog-params.ts    Lecture et écriture des filtres dans l'URL
-    orders.ts            Création de commande et passage en « payée » (idempotent)
-    pricing.ts           Livraison et codes promo (partagé client / serveur)
-    cart-store.ts        Panier (Zustand)
-    validations.ts       Schémas Zod
+
+L’installation génère également le client Prisma selon la configuration du projet.
+
+### 2. Configurer l’environnement
+
+```bash
+cp .env.example .env
 ```
 
-### Choix techniques
+Sous Windows PowerShell :
 
-- **Prix en centimes** (entiers) partout, pour éviter les erreurs d'arrondi.
-- **Le serveur recalcule tout** au checkout (prix, stock, remise, livraison) : le contenu du panier côté client n'est jamais considéré comme fiable.
-- **Statuts et rôles en `String`** plutôt qu'en enum Prisma, pour rester portable entre SQLite et PostgreSQL.
-- **Polices auto-hébergées** (Fontsource) : aucun appel à Google Fonts, ni au build ni chez le visiteur.
-- **Les images produit** sont des URL (Unsplash, placehold.co). Les domaines déclarés dans `next.config.ts` sont optimisés par `next/image`, les autres sont affichés tels quels.
+```powershell
+Copy-Item .env.example .env
+```
 
----
+Renseignez ensuite les variables décrites dans la section [Configuration](#configuration).
 
-## Passer à PostgreSQL
+### 3. Initialiser la base de données
 
-1. Dans `prisma/schema.prisma`, remplacez `provider = "sqlite"` par `provider = "postgresql"`.
-2. Mettez à jour `DATABASE_URL` (ex. `postgresql://user:password@localhost:5432/mkfit`).
-3. Supprimez le dossier `prisma/migrations` (spécifique à SQLite), puis lancez :
-   ```bash
-   npx prisma migrate dev --name init
-   ```
+```bash
+npx prisma migrate dev
+```
 
-Aucune autre modification de code n'est nécessaire.
+Lors de l’initialisation, la configuration décrite pour ce projet prévoit également l’exécution du seed. Si les données de démonstration ne sont pas présentes, lancez `npm run db:seed` sur cette base de développement uniquement.
 
----
+### 4. Démarrer l’application
 
-## Mise en production : checklist
+```bash
+npm run dev
+```
 
-- [ ] Générer un `NEXTAUTH_SECRET` robuste et définir les URL de production
-- [ ] Changer le mot de passe du compte admin (ou définir `SEED_ADMIN_PASSWORD` avant le seed)
-- [ ] Passer aux clés Stripe live et créer le webhook dans le tableau de bord Stripe (événements `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`)
-- [ ] Brancher un service d'emails (confirmation de commande, formulaire de contact)
-- [ ] Faire valider les CGV par un juriste (le texte fourni est un modèle)
-- [ ] Remplacer les images de démonstration et le logo texte
+Ouvrez [http://localhost:3000](http://localhost:3000).
 
----
+## Configuration
+
+Les variables d’environnement sont définies dans `.env`.
+
+| Variable | Description |
+| --- | --- |
+| `DATABASE_URL` | URL de connexion à la base. Pour SQLite : `file:./dev.db`. |
+| `NEXTAUTH_URL` | URL publique de l’application, par exemple `http://localhost:3000`. |
+| `NEXTAUTH_SECRET` | Secret utilisé pour la gestion des sessions. |
+| `STRIPE_SECRET_KEY` | Clé secrète Stripe de test, préfixée par `sk_test_`. Laisser vide pour le mode démo. |
+| `STRIPE_WEBHOOK_SECRET` | Secret de signature du webhook Stripe, préfixé par `whsec_`. |
+| `NEXT_PUBLIC_SITE_URL` | URL publique utilisée pour le sitemap, les métadonnées et les redirections Stripe. |
+| `SEED_ADMIN_EMAIL` | Adresse email du compte administrateur créé par le seed, facultative. |
+| `SEED_ADMIN_PASSWORD` | Mot de passe du compte administrateur créé par le seed, facultatif. |
+
+Pour générer un secret avec OpenSSL :
+
+```bash
+openssl rand -base64 32
+```
+
+Ne versionnez pas le fichier `.env` ni les clés secrètes.
+
+## Données de démonstration
+
+Le seed fournit **37 produits**, **5 catégories**, des comptes utilisateurs, des avis et des codes promotionnels.
+
+### Comptes
+
+| Rôle | Email | Mot de passe |
+| --- | --- | --- |
+| Administrateur | `admin@mkfit.fr` | `Admin123!` |
+| Client | `client@mkfit.fr` | `Client123!` |
+
+Ces identifiants sont réservés à la démonstration. Le compte administrateur permet d’accéder à `/admin`.
+
+### Codes promotionnels
+
+| Code | Avantage | Condition |
+| --- | --- | --- |
+| `BIENVENUE10` | Réduction de 10 % | Aucun minimum indiqué |
+| `MKFIT20` | Réduction de 20 % | À partir de 100 € d’achat |
+| `LIVRAISON5` | Réduction de 5 € | À partir de 30 € d’achat |
+
+## Paiement
+
+### Mode démonstration
+
+En l’absence de `STRIPE_SECRET_KEY`, la validation du panier crée une commande et la marque directement comme payée, **sans transaction financière**.
+
+Ce mode permet de tester le parcours d’achat. Il doit être désactivé ou bloqué avant une ouverture commerciale.
+
+### Stripe en mode test
+
+1. Récupérez la clé secrète de test dans votre tableau de bord Stripe et renseignez `STRIPE_SECRET_KEY`.
+2. Installez Stripe CLI, puis redirigez les événements vers l’application locale :
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+3. Copiez le secret `whsec_…` affiché dans `STRIPE_WEBHOOK_SECRET`, puis redémarrez le serveur si nécessaire.
+4. Effectuez une commande avec les informations de test suivantes :
+
+| Champ | Valeur |
+| --- | --- |
+| Numéro de carte | `4242 4242 4242 4242` |
+| Date d’expiration | Une date future |
+| CVC | Trois chiffres au choix |
+
+Le statut de paiement est actualisé par le webhook. La page de confirmation vérifie également le paiement auprès de Stripe, ce qui permet de finaliser le parcours local lorsque le webhook n’est pas lancé et que le client revient sur cette page.
+
+Le passage au statut « payée » est idempotent : une même commande ne doit décrémenter le stock qu’une seule fois. En production, configurez le webhook pour traiter le paiement indépendamment du retour du client sur le site.
+
+## Commandes disponibles
+
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Démarrer le serveur de développement avec Turbopack. |
+| `npm run build` | Générer le build de production. |
+| `npm start` | Démarrer l’application à partir du build de production. |
+| `npm run lint` | Exécuter ESLint. |
+| `npm run typecheck` | Vérifier les types TypeScript. |
+| `npm run db:migrate` | Exécuter le script de migration Prisma du projet. |
+| `npm run db:seed` | Vider puis alimenter la base avec les données de démonstration. |
+| `npm run db:reset` | Réinitialiser complètement la base et relancer le seed. |
+| `npm run db:studio` | Ouvrir Prisma Studio pour explorer les données. |
+
+> **Opérations destructives :** `db:seed` et `db:reset` suppriment des données. Réservez-les aux environnements de développement et de démonstration.
+
+## Organisation du projet
+
+| Emplacement | Responsabilité |
+| --- | --- |
+| `prisma/schema.prisma` | Modèle de données. |
+| `prisma/seed.ts` | Données de démonstration. |
+| `src/middleware.ts` | Protection des routes `/compte` et `/admin`. |
+| `src/actions/` | Server Actions : compte, panier, favoris, avis, formulaires et administration. |
+| `src/app/(shop)/` | Pages publiques et espace client, avec en-tête et pied de page. |
+| `src/app/admin/` | Interface d’administration et layout dédié. |
+| `src/app/api/` | Routes d’authentification, recherche, checkout et webhook Stripe. |
+| `src/app/sitemap.ts` | Génération du sitemap. |
+| `src/app/robots.ts` | Configuration des directives d’indexation. |
+| `src/components/` | Composants d’interface et composants organisés par domaine fonctionnel. |
+| `src/lib/` | Configuration, accès aux données et logique métier partagée. |
+
+### Modules principaux
+
+| Module dans `src/lib/` | Rôle |
+| --- | --- |
+| `auth.ts` | Configuration NextAuth et contrôles `requireUser` / `requireAdmin`. |
+| `catalog.ts` | Requêtes Prisma du catalogue. |
+| `catalog-params.ts` | Lecture et écriture des filtres dans l’URL. |
+| `orders.ts` | Création des commandes et validation idempotente du paiement. |
+| `pricing.ts` | Calculs de livraison et codes promotionnels partagés entre client et serveur. |
+| `cart-store.ts` | État du panier avec Zustand. |
+| `validations.ts` | Schémas de validation Zod. |
+
+Les composants sont répartis dans les dossiers `ui`, `layout`, `product`, `catalog`, `cart`, `checkout`, `account`, `order`, `admin` et `home`.
+
+## Choix techniques
+
+- **Montants en centimes.** Les prix sont stockés et manipulés sous forme d’entiers pour limiter les erreurs d’arrondi.
+- **Calculs vérifiés côté serveur.** Au checkout, le serveur recalcule les prix, les remises et les frais de livraison, puis vérifie les stocks. Les données du panier client ne font pas autorité.
+- **Traitement idempotent du paiement.** La confirmation d’un paiement peut être reçue plusieurs fois sans provoquer plusieurs décrémentations du stock pour une même commande.
+- **Portabilité des données.** Les statuts et rôles sont représentés par des champs `String` plutôt que par des enums Prisma afin de faciliter l’adaptation entre SQLite et PostgreSQL.
+- **Polices auto-hébergées.** Fontsource évite les appels à Google Fonts pendant le build et la navigation.
+- **Images distantes.** Les images de démonstration proviennent notamment d’Unsplash et de placehold.co. Les domaines autorisés dans `next.config.ts` bénéficient de l’optimisation `next/image` ; les autres images sont affichées sans cette optimisation.
+
+## Passage à PostgreSQL
+
+Cette procédure concerne la création d’une nouvelle base PostgreSQL. Elle ne transfère pas les données d’une base SQLite existante.
+
+1. Sauvegardez les données existantes et conservez l’historique des migrations SQLite dans le contrôle de version.
+2. Dans `prisma/schema.prisma`, remplacez le fournisseur `sqlite` par `postgresql`.
+3. Mettez à jour `DATABASE_URL` :
+
+```dotenv
+DATABASE_URL="postgresql://user:password@localhost:5432/mkfit"
+```
+
+4. Dans une branche dédiée et contre une base de développement vide, remplacez l’historique de migrations SQLite par un historique adapté à PostgreSQL, puis créez la migration initiale :
+
+```bash
+npx prisma migrate dev --name init
+```
+
+5. Vérifiez le schéma généré et les principaux parcours de l’application avant le déploiement.
+
+Si des données doivent être conservées, prévoyez une opération distincte d’export, de transformation et d’import.
+
+## Mise en production
+
+### Configuration et accès
+
+- [ ] Définir les URL de production et un `NEXTAUTH_SECRET` robuste.
+- [ ] Configurer la base de données cible et prévoir ses sauvegardes.
+- [ ] Remplacer les identifiants de démonstration et sécuriser le compte administrateur.
+- [ ] Vérifier que le mode démo ne peut pas valider des commandes commerciales.
+
+### Paiement et services
+
+- [ ] Configurer les clés Stripe de production.
+- [ ] Créer le webhook de production et renseigner son secret de signature.
+- [ ] Configurer les événements utilisés par le projet : `checkout.session.completed`, `checkout.session.async_payment_succeeded` et `checkout.session.expired`.
+- [ ] Vérifier le parcours de paiement et l’actualisation des commandes et des stocks.
+- [ ] Connecter un service d’emails pour les confirmations de commande et les notifications du formulaire de contact.
+
+### Contenus et validation
+
+- [ ] Adapter les CGV et les faire valider avant utilisation commerciale.
+- [ ] Remplacer les images de démonstration et le logo texte.
+- [ ] Vérifier les informations de livraison, de retour et de contact.
+- [ ] Exécuter les contrôles du projet et générer le build :
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
+
+Après configuration et génération du build, l’application peut être démarrée avec `npm start` sur un hébergement adapté.
 
 ## Dépannage
 
-**`unable to verify the first certificate` / images ou polices qui ne se chargent pas en local**
-Votre réseau (proxy d'entreprise, antivirus) inspecte le HTTPS avec un certificat racine que Node.js ne connaît pas. Avec Node.js 22.15 ou plus, demandez-lui d'utiliser les certificats du système :
+### Erreur de certificat HTTPS
+
+L’erreur `unable to verify the first certificate` peut apparaître lorsqu’un proxy ou un antivirus inspecte les connexions HTTPS à l’aide d’un certificat racine non reconnu par Node.js.
+
+Vérifiez que le certificat de confiance est correctement installé. Si votre version de Node.js prend en charge l’option `--use-system-ca`, vous pouvez utiliser les certificats du système :
 
 ```bash
 NODE_OPTIONS=--use-system-ca npm run dev
 ```
 
-(PowerShell : `$env:NODE_OPTIONS="--use-system-ca"; npm run dev`)
+Sous PowerShell :
 
-**Erreurs `EPERM` / `UNKNOWN` sur des fichiers de `.next` sous Windows**
-Un antivirus ou un outil de synchronisation verrouille le dossier de build. Arrêtez le serveur, supprimez `.next`, puis relancez. Exclure le dossier du projet de l'analyse en temps réel règle généralement le problème.
-#   m k f i t  
- 
+```powershell
+$env:NODE_OPTIONS="--use-system-ca"
+npm run dev
+```
+
+### Erreurs `EPERM` ou `UNKNOWN` dans `.next` sous Windows
+
+Un processus, un antivirus ou un outil de synchronisation peut verrouiller les fichiers de build.
+
+1. Arrêtez le serveur de développement.
+2. Fermez les processus qui utilisent les fichiers du projet.
+3. Supprimez uniquement le dossier généré `.next`.
+4. Relancez `npm run dev`.
+
+Si le problème persiste, identifiez le programme qui verrouille les fichiers et vérifiez sa configuration.

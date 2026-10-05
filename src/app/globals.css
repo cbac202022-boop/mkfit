@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-white text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+  /* Focus visible bien marqué pour la navigation clavier */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ink ring-offset-2;
+  }
+  .dark-surface :focus-visible {
+    @apply ring-accent ring-offset-ink;
+  }
+}
+
+@layer components {
+  .heading-xl {
+    @apply font-display text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl;
+  }
+  .heading-lg {
+    @apply font-display text-3xl font-black uppercase tracking-tight sm:text-4xl;
+  }
+  .heading-md {
+    @apply font-display text-xl font-extrabold uppercase tracking-tight sm:text-2xl;
+  }
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.2em];
+  }
+  .prose-mkfit {
+    @apply max-w-3xl space-y-4 leading-relaxed text-ink-600;
+  }
+  .prose-mkfit h2 {
+    @apply pt-6 font-display text-xl font-extrabold uppercase text-ink;
+  }
+  .prose-mkfit ul {
+    @apply list-disc space-y-1 pl-6;
+  }
+  .prose-mkfit a {
+    @apply font-semibold text-ink underline underline-offset-2;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

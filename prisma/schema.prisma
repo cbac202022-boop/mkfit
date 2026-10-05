@@ -1,0 +1,208 @@
+// Schéma MKFit
+// SQLite en développement. Pour passer à PostgreSQL : changer `provider` en "postgresql"
+// et DATABASE_URL, puis relancer `npx prisma migrate dev`.
+// Les statuts et rôles sont des String (pas d'enum) pour rester portable.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         String     @default("CUSTOMER") // CUSTOMER | ADMIN
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  addresses    Address[]
+  orders       Order[]
+  favorites    Favorite[]
+  reviews      Review[]
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName   String
+  line1      String
+  line2      String?
+  postalCode String
+  city       String
+  country    String   @default("France")
+  phone      String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  position    Int       @default(0)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+model Product {
+  id             String         @id @default(cuid())
+  name           String
+  slug           String         @unique
+  description    String
+  price          Int // en centimes
+  compareAtPrice Int? // prix barré, en centimes
+  brand          String
+  categoryId     String
+  category       Category       @relation(fields: [categoryId], references: [id])
+  featured       Boolean        @default(false)
+  active         Boolean        @default(true)
+  salesCount     Int            @default(0) // sert au tri « popularité »
+  sizeLabel      String         @default("Taille") // ex. « Contenance » pour la nutrition
+  colorLabel     String         @default("Couleur") // ex. « Saveur » pour la nutrition
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  images         ProductImage[]
+  variants       Variant[]
+  reviews        Review[]
+  favorites      Favorite[]
+  orderItems     OrderItem[]
+
+  @@index([categoryId])
+  @@index([brand])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String
+  position  Int     @default(0)
+
+  @@index([productId])
+}
+
+model Variant {
+  id         String      @id @default(cuid())
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku        String      @unique
+  size       String // "Unique" pour les produits sans taille
+  color      String
+  colorHex   String      @default("#000000")
+  stock      Int         @default(0)
+  orderItems OrderItem[]
+
+  @@unique([productId, size, color])
+  @@index([productId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int // 1 à 5
+  title     String
+  comment   String
+  createdAt DateTime @default(now())
+
+  @@unique([productId, userId])
+  @@index([productId])
+}
+
+model Favorite {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+}
+
+model PromoCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  type        String // PERCENT | FIXED
+  value       Int // pourcentage (PERCENT) ou centimes (FIXED)
+  minSubtotal Int       @default(0) // en centimes
+  active      Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  number            String      @unique
+  userId            String?
+  user              User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email             String
+  status            String      @default("PENDING") // PENDING | PAID | SHIPPED | DELIVERED | CANCELLED
+  subtotal          Int
+  discount          Int         @default(0)
+  shippingCost      Int
+  total             Int
+  promoCode         String?
+  shippingMethod    String // STANDARD | EXPRESS | PICKUP
+  shippingName      String
+  shippingLine1     String
+  shippingLine2     String?
+  shippingPostal    String
+  shippingCity      String
+  shippingCountry   String
+  shippingPhone     String?
+  stripeSessionId   String?     @unique
+  paidAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  items             OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId String?
+  variant   Variant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  // Copie des infos au moment de l'achat (le produit peut changer ensuite)
+  name      String
+  size      String
+  color     String
+  image     String?
+  unitPrice Int
+  quantity  Int
+
+  @@index([orderId])
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  createdAt DateTime @default(now())
+}
